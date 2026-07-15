@@ -24,7 +24,7 @@ Built with **Clean Architecture** (Controllers → Services → Repositories), t
 | Email (bonus) | Nodemailer (console or SMTP) |
 | Tests | Jest + Supertest |
 
-> **Note on the brief:** the original scenario was written for .NET and named **Entity Framework Core**, **Serilog**, and .NET's DI container — none of which run on Node.js. They are replaced with the closest Node-native equivalents: **TypeORM**, **Pino**, and **tsyringe** respectively. See `WRITEUP.md`.
+> **Note on the brief:** the scenario specifies Node.js, but two requirement lines name **.NET-specific tools** — **Entity Framework Core** and **Serilog** — leftovers from a .NET template. These are replaced with the closest Node-native equivalents, **TypeORM** and **Pino**. The brief's **Dependency Injection** requirement is a language-agnostic pattern, implemented here with **tsyringe**. See `WRITEUP.md`.
 
 ---
 
@@ -80,6 +80,8 @@ Interactive documentation is generated automatically at runtime:
 To authorize protected endpoints in Swagger UI: call `POST /api/auth/login`, copy the returned `token`, click **Authorize**, and paste it.
 
 The seeded admin (from `.env`) defaults to `admin@portal.local` / `Admin123!`.
+
+For a full copy-paste walkthrough (register → login → place order → cancel, with example JSON and curl), see [`docs/API_EXAMPLES.md`](docs/API_EXAMPLES.md).
 
 ---
 
