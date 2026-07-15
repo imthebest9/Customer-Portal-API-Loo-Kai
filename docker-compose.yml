@@ -1,0 +1,50 @@
+services:
+  # The API itself. Build + run everything with:  docker compose up --build
+  # (Omit this service and run `npm run dev` on the host if you prefer hot reload.)
+  api:
+    build: .
+    container_name: customer-portal-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      # Inside the compose network the database is reached by its service name,
+      # not localhost — this overrides DB_HOST from .env for the container only.
+      DB_HOST: db
+      NODE_ENV: production
+    ports:
+      - '${PORT:-3000}:3000'
+
+  db:
+    image: postgres:16-alpine
+    container_name: customer-portal-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-customer_portal}
+    ports:
+      - '${DB_PORT:-5432}:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USERNAME:-postgres}']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Optional — only needed when CACHE_DRIVER=redis. Start with:
+  #   docker compose --profile redis up -d
+  redis:
+    image: redis:7-alpine
+    container_name: customer-portal-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    profiles: ['redis']
+
+volumes:
+  pgdata:

@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Test coverage
+coverage/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment / secrets (never commit real values — use .env.example as the template)
+.env
+.env.*
+!.env.example
+
+# Scenario brief / internal Word docs — keep out of the public repo
+*.docx
+~$*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

@@ -1,0 +1,49 @@
+# Design Write-Up — Customer Portal API
+
+## Approach
+
+I built the Customer Portal API as a layered **Clean Architecture** application in TypeScript. The guiding rule is that dependencies point inward: the innermost **domain** layer knows nothing about the web or the database, and the outer layers depend on it — never the reverse. This keeps the business rules (who may cancel an order, how a total is computed, when a customer may log in) isolated from framework and infrastructure concerns.
+
+The four layers:
+
+- **Domain** — framework-free models (`Customer`, `Order`, …), enums, the `AppError` hierarchy, and **repository interfaces** (`ICustomerRepository`, `IOrderRepository`, `IProductRepository`). Nothing here imports Express or TypeORM.
+- **Application** — use-case **services** (`AuthService`, `CustomerService`, `OrderService`, `AdminService`, `ProductService`), request DTOs, Zod validators, and outbound **ports** (`ILogger`, `ICacheService`, `IEmailService`, `ITokenService`, `IHasher`). Services depend only on interfaces.
+- **Infrastructure** — the concrete implementations: TypeORM entities and repositories, config loading, Pino logging, cache and email adapters, JWT and bcrypt security.
+- **Presentation** — Express controllers, routes, middleware (auth, role guard, validation, error handling), and Swagger.
+
+A single **composition root** (`container.ts`) wires interfaces to implementations using **tsyringe**, so every class receives its dependencies by constructor injection (Dependency Inversion in practice).
+
+## Adapting the brief to Node.js
+
+The scenario was clearly authored for a .NET stack and named three technologies that do not exist on Node.js. I substituted the closest idiomatic equivalents (confirmed up-front):
+
+| Brief (.NET) | Node.js replacement | Why |
+| --- | --- | --- |
+| Entity Framework Core | **TypeORM** | Closest analog: decorator-based entities, a built-in Repository pattern, and code-first migrations. |
+| Serilog | **Pino** | Fast, structured JSON logging with secret redaction. |
+| Built-in DI container | **tsyringe** | Lightweight, decorator-driven constructor injection. |
+
+Other deliberate choices: **PostgreSQL** as the relational database; **Express 5** with hand-built layers (rather than a batteries-included framework) so the SOLID/Clean-Architecture structure is explicit; **Zod** for boundary validation; and **JWT + bcryptjs** for auth. A `Product` entity was introduced so orders reference real line items and totals are computed server-side rather than trusted from the client.
+
+## Key design decisions
+
+- **Repository Pattern abstracts the ORM.** Services never touch TypeORM. They depend on repository interfaces; the TypeORM implementations map persistence entities to plain domain models via small mapper functions. This satisfies the brief's "abstract EF Core from business logic" and made database-free testing possible.
+- **Code-first migrations, `synchronize` off.** The schema is owned by an explicit, reviewable migration — never auto-synced in production.
+- **Global error handling.** A custom `AppError` hierarchy carries HTTP status codes; one error-handling middleware maps them to consistent JSON responses (401/403/404/409/422/500). Unexpected errors are logged and returned as a generic 500 so internals never leak.
+- **Security.** Passwords are bcrypt-hashed; login returns a uniform "Invalid credentials" message to avoid user enumeration; deactivated/deleted customers cannot authenticate; JWTs carry the role for authorization; Helmet, CORS, and rate-limiting protect the surface.
+- **Bonus features, all behind interfaces.** Pagination on every listing endpoint; a `ICacheService` (in-memory by default, Redis-swappable) caching profile and order-status reads with write-invalidation; and `IEmailService` notifications on order placed / shipped. Email failures are caught so they never fail the underlying transaction.
+
+## Challenges & solutions
+
+- **Decorator metadata across runtimes.** tsyringe resolves constructor dependencies from reflection metadata. `ts-jest` emits `design:paramtypes`, but the `tsx`/esbuild dev runner does **not** — so controllers with bare class-typed constructors failed at runtime even though tests passed. Fixed by making every injection explicit with `@inject(...)` tokens, which works identically under both runners. TypeORM entities avoid the same trap by declaring an explicit `type:` on every column.
+- **Express 5 immutability.** In Express 5 `req.query` is a read-only getter, so validated/coerced input can't be written back onto it. The `validate` middleware stores Zod's parsed output on `req.validated` instead, which controllers read from.
+- **Windows path globbing.** swagger-jsdoc (and the migration glob) use the `glob` library, which treats backslashes as escape characters. Building paths with `path.join` on Windows produced zero matches; normalising to forward slashes fixed doc generation.
+- **Decimal handling.** PostgreSQL `numeric` columns come back as strings from the driver; a `ValueTransformer` converts them to JS numbers so money values are numeric throughout.
+
+## Testing & verification
+
+The Jest/Supertest suite exercises the **real Express app** wired to in-memory repositories through the production DI tokens — no database required — covering auth, profile/password flows, order placement and the cancel-only-while-pending rule, ownership checks, pagination, and role-based authorization (401 vs 403 vs 200). The TypeORM entity/repository layer and the numeric transformer were additionally validated offline (metadata build, schema synchronize, cascade insert, eager load, status update, pagination) to confirm the persistence mappings independently of a live server.
+
+## Possible next steps
+
+Refresh tokens and token revocation; transactional order creation with stock decrement; structured audit logging; integration tests against a disposable Postgres in CI; and OpenAPI-driven contract tests.
