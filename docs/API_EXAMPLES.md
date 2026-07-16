@@ -135,7 +135,7 @@ Prices come back as real JSON **numbers**, not strings — PostgreSQL returns `n
 
 `productName` and `unitPrice` are **copied onto the order line** rather than looked up through the product: if the catalogue later renames the product or changes its price, this order still shows what the customer actually bought at the price they paid.
 
-Placing an order sends a confirmation email — **see it at <http://localhost:8025>**.
+Placing an order sends a confirmation email — **see it at <http://localhost:8025>**, itemised with each product's unit price, quantity and line amount.
 
 Two rejections worth trying:
 
@@ -160,7 +160,9 @@ Cached (60s), invalidated whenever the status actually changes, and ownership is
 
 **`PATCH /api/orders/{id}/cancel`** — no body; allowed **only while `Pending`**.
 
-**`200`** returns the order with `status: "Cancelled"`. Cancel again (or after an admin ships it) and you get `409` — that's the lifecycle rule working:
+**`200`** returns the order with `status: "Cancelled"`, and sends a cancellation email — the customer's receipt for it, and the same message an admin-initiated cancel sends.
+
+Cancel again (or after an admin ships it) and you get `409` — that's the lifecycle rule working:
 
 ```json
 {
@@ -177,7 +179,7 @@ Log in as `admin@portal.local` / `Admin123!` and re-**Authorize** with that toke
 
 - **`GET /api/admin/customers`** — all customers, paginated (never any password hash).
 - **`GET /api/admin/orders`** — all orders across every customer.
-- **`PATCH /api/admin/orders/{id}/status`** with `{ "status": "Shipped" }` — moving to `Shipped` sends a shipment email (again, <http://localhost:8025>).
+- **`PATCH /api/admin/orders/{id}/status`** with `{ "status": "Shipped" }` — `Shipped`, `Delivered` and `Cancelled` each email the customer (again, <http://localhost:8025>).
 - **`PATCH /api/admin/customers/{id}/deactivate`** → `200`, now `"isActive": false`.
 - **`DELETE /api/admin/customers/{id}`** → `204`. Cascades to that customer's orders and order items.
 

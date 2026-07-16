@@ -101,7 +101,14 @@ Order status follows one lifecycle — `Pending → Shipped → Delivered`, `Pen
 [15:58:36] INFO: POST /api/auth/login → 200
 ```
 
-**Email** — HTML notifications (greeting, itemised table, total, footer, plus a plain-text alternative) on order **placed** and **shipped**. Delivered for real to Mailpit at **http://localhost:8025**; point `SMTP_*` at any provider instead. Send failures are caught, so a dead mail server never fails the order.
+**Email** — HTML notifications on every status a customer would want to hear about: order **placed**, **shipped**, **delivered** and **cancelled** (whether the customer cancelled it or an admin did). Each carries a greeting, an itemised table with **unit price**, quantity and line amount, the total, and a plain-text alternative for clients that strip HTML. Delivered for real to Mailpit at **http://localhost:8025**; point `SMTP_*` at any provider instead. Send failures are caught, so a dead mail server never fails the order.
+
+```
+  - USB-C Hub — $45.00 each x 2 = $90.00
+  - Wireless Mouse — $25.50 each x 1 = $25.50
+
+  Total: $115.50
+```
 
 **Caching** — profiles and order statuses, 60s TTL, with **write-invalidation** so a cached read is never stale. In-memory by default, Redis-swappable. A hit is indistinguishable from a miss in the response, so the tests pin the behaviour instead: a hit still enforces ownership, and status changes show up immediately.
 
@@ -131,10 +138,10 @@ Prices and totals are never accepted from the client — they're computed server
 ## Testing
 
 ```bash
-npm test    # 34 tests, no database or Docker required
+npm test    # 44 tests, no database or Docker required
 ```
 
-The suite runs the **real Express app** wired to in-memory repositories through the production DI tokens — possible precisely because services depend on interfaces, not TypeORM. It covers auth, profile and password flows, validation, the order lifecycle, ownership, pagination, role-based authorization, and logging.
+The suite runs the **real Express app** wired to in-memory repositories through the production DI tokens — possible precisely because services depend on interfaces, not TypeORM. It covers auth, profile and password flows, validation, the order lifecycle, ownership, pagination, role-based authorization, logging, and the notification emails (asserted against a recording transport, so only SMTP is faked).
 
 ---
 

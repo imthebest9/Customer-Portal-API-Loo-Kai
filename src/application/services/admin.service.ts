@@ -10,9 +10,27 @@ import { ICacheService } from '../ports/cache.port';
 import { IEmailService } from '../ports/email.port';
 import { ILogger } from '../ports/logger.port';
 import { CustomerResponse, toCustomerResponse } from '../dtos/customer.dto';
-import { orderShippedEmail } from '../email/order-emails';
+import { EmailMessage } from '../ports/email.port';
+import {
+  orderCancelledEmail,
+  orderDeliveredEmail,
+  orderShippedEmail,
+} from '../email/order-emails';
 import { cacheKeys } from './cache-keys';
 import { TOKENS } from '../../shared/tokens';
+
+type OrderEmailTemplate = (customerName: string, to: string, order: Order) => EmailMessage;
+
+/**
+ * Which statuses are worth emailing about, and what to say. `Pending` has no
+ * entry: an order only reaches it at creation, which OrderService already
+ * confirms by email.
+ */
+const STATUS_EMAILS: Partial<Record<OrderStatus, OrderEmailTemplate>> = {
+  [OrderStatus.Shipped]: orderShippedEmail,
+  [OrderStatus.Delivered]: orderDeliveredEmail,
+  [OrderStatus.Cancelled]: orderCancelledEmail,
+};
 
 @injectable()
 export class AdminService {
@@ -72,19 +90,27 @@ export class AdminService {
     await this.cache.del(cacheKeys.orderStatus(orderId));
     this.logger.info({ orderId, status }, 'Order status updated by admin');
 
-    if (status === OrderStatus.Shipped) {
-      await this.notifyOrderShipped(updated);
-    }
+    await this.notifyStatusChange(updated, status);
     return updated;
   }
 
-  private async notifyOrderShipped(order: Order): Promise<void> {
+  /**
+   * Emails the customer about a status change, where the new status has something
+   * worth saying. Driven by a lookup rather than a chain of ifs: adding a
+   * notification for a future status is one entry in {@link STATUS_EMAILS}, and a
+   * status with no entry simply stays quiet.
+   */
+  private async notifyStatusChange(order: Order, status: OrderStatus): Promise<void> {
+    const template = STATUS_EMAILS[status];
+    if (!template) return;
+
     try {
       const customer = await this.customers.findById(order.customerId);
       if (!customer) return;
-      await this.email.send(orderShippedEmail(customer.name, customer.email, order));
+      await this.email.send(template(customer.name, customer.email, order));
     } catch (err) {
-      this.logger.error({ err, orderId: order.id }, 'Failed to send order-shipped email');
+      // Notifications must never fail the status update that triggered them.
+      this.logger.error({ err, orderId: order.id, status }, 'Failed to send order status email');
     }
   }
 }

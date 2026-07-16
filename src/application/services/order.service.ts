@@ -13,9 +13,9 @@ import {
 } from '../../domain/errors/app-error';
 import { PaginatedResult, PaginationParams } from '../../domain/repositories/pagination';
 import { ICacheService } from '../ports/cache.port';
-import { IEmailService } from '../ports/email.port';
+import { EmailMessage, IEmailService } from '../ports/email.port';
 import { ILogger } from '../ports/logger.port';
-import { orderPlacedEmail } from '../email/order-emails';
+import { orderCancelledEmail, orderPlacedEmail } from '../email/order-emails';
 import { cacheKeys } from './cache-keys';
 import { TOKENS } from '../../shared/tokens';
 
@@ -71,7 +71,7 @@ export class OrderService {
     });
 
     this.logger.info({ orderId: order.id, customerId, total: order.totalAmount }, 'Order placed');
-    await this.notifyOrderPlaced(customerId, order);
+    await this.notify(customerId, order, orderPlacedEmail);
     return order;
   }
 
@@ -105,6 +105,9 @@ export class OrderService {
     const updated = await this.orders.updateStatus(orderId, OrderStatus.Cancelled);
     await this.cache.del(cacheKeys.orderStatus(orderId));
     this.logger.info({ orderId, customerId }, 'Order cancelled');
+    // Confirmed by email even though the customer asked for it themselves: it's
+    // the receipt for the cancellation, and the same message an admin cancel sends.
+    await this.notify(customerId, updated, orderCancelledEmail);
     return updated;
   }
 
@@ -128,14 +131,18 @@ export class OrderService {
     return { status: order.status };
   }
 
-  private async notifyOrderPlaced(customerId: string, order: Order): Promise<void> {
+  private async notify(
+    customerId: string,
+    order: Order,
+    template: (customerName: string, to: string, order: Order) => EmailMessage,
+  ): Promise<void> {
     try {
       const customer = await this.customers.findById(customerId);
       if (!customer) return;
-      await this.email.send(orderPlacedEmail(customer.name, customer.email, order));
+      await this.email.send(template(customer.name, customer.email, order));
     } catch (err) {
-      // Notifications must never fail the order transaction.
-      this.logger.error({ err, orderId: order.id }, 'Failed to send order-placed email');
+      // Notifications must never fail the transaction that triggered them.
+      this.logger.error({ err, orderId: order.id }, 'Failed to send order email');
     }
   }
 }

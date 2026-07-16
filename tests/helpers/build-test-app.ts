@@ -8,7 +8,7 @@ import { PinoLogger } from '../../src/infrastructure/logging/pino.logger';
 import { BcryptHasher } from '../../src/infrastructure/security/bcrypt.hasher';
 import { JwtTokenService } from '../../src/infrastructure/security/jwt.token.service';
 import { MemoryCacheService } from '../../src/infrastructure/cache/memory.cache';
-import { NodemailerEmailService } from '../../src/infrastructure/email/nodemailer.email.service';
+import { RecordingEmailService } from '../fakes/recording-email.service';
 import { buildApp } from '../../src/app';
 import {
   InMemoryCustomerRepository,
@@ -21,6 +21,7 @@ export interface TestContext {
   customerRepo: InMemoryCustomerRepository;
   productRepo: InMemoryProductRepository;
   orderRepo: InMemoryOrderRepository;
+  emails: RecordingEmailService;
   admin: Customer;
   products: Product[];
 }
@@ -40,7 +41,8 @@ export async function buildTestApp(): Promise<TestContext> {
   container.register(TOKENS.Hasher, { useClass: BcryptHasher });
   container.register(TOKENS.TokenService, { useClass: JwtTokenService });
   container.registerInstance(TOKENS.CacheService, new MemoryCacheService(config.CACHE_TTL_SECONDS));
-  container.registerInstance(TOKENS.EmailService, new NodemailerEmailService(config, logger));
+  const emails = new RecordingEmailService();
+  container.registerInstance(TOKENS.EmailService, emails);
 
   const customerRepo = new InMemoryCustomerRepository();
   const productRepo = new InMemoryProductRepository();
@@ -65,5 +67,5 @@ export async function buildTestApp(): Promise<TestContext> {
     { name: 'Gadget', price: 20.5 },
   ]);
 
-  return { app: buildApp(), customerRepo, productRepo, orderRepo, admin, products };
+  return { app: buildApp(), customerRepo, productRepo, orderRepo, emails, admin, products };
 }
