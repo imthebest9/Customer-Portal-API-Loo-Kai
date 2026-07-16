@@ -34,8 +34,43 @@ export function buildApp(): Express {
 
   app.use(helmet());
   app.use(cors());
-  app.use(express.json());
-  app.use(pinoHttp({ logger: rootLogger }));
+  // No endpoint legitimately accepts a large body; capping it rejects
+  // memory-exhaustion payloads at the door (413 via the error handler).
+  app.use(express.json({ limit: '100kb' }));
+  /*
+   * Request logging, deliberately terse. pino-http's defaults dump every request
+   * and response header on both sides of each call, which buries the events worth
+   * reading. One line per request — method, path, status, duration — keeps the log
+   * scannable while staying structured for a log aggregator. Swagger's asset
+   * requests and the health probe are skipped: they'd otherwise be most of the
+   * volume and none of the signal.
+   */
+  /*
+   * Express rewrites `req.url` relative to a router's mount point, so by the time
+   * a response fires it reads `/register` rather than `/api/auth/register`.
+   * `originalUrl` survives that rewrite; anything logging a path must use it.
+   */
+  const fullPath = (req: { originalUrl?: string; url?: string }): string =>
+    req.originalUrl ?? req.url ?? '';
+
+  app.use(
+    pinoHttp({
+      logger: rootLogger,
+      autoLogging: {
+        ignore: (req) => {
+          const url = fullPath(req);
+          return url === '/health' || url === '/' || url.startsWith('/api-docs');
+        },
+      },
+      serializers: {
+        req: (req) => ({ method: req.method, url: fullPath(req) }),
+        res: (res) => ({ statusCode: res.statusCode }),
+      },
+      customSuccessMessage: (req, res) => `${req.method} ${fullPath(req)} → ${res.statusCode}`,
+      customErrorMessage: (req, res, err) =>
+        `${req.method} ${fullPath(req)} → ${res.statusCode} (${err.message})`,
+    }),
+  );
 
   // Basic abuse protection on the API surface (does not throttle Swagger assets).
   app.use(

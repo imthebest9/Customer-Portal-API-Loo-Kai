@@ -8,12 +8,15 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      mailpit:
+        condition: service_started
     env_file:
       - .env
     environment:
-      # Inside the compose network the database is reached by its service name,
-      # not localhost — this overrides DB_HOST from .env for the container only.
+      # Inside the compose network these services are reached by their service
+      # names, not localhost — these override .env for the container only.
       DB_HOST: db
+      SMTP_HOST: mailpit
       NODE_ENV: production
     ports:
       - '${PORT:-3000}:3000'
@@ -45,6 +48,35 @@ services:
     ports:
       - '6379:6379'
     profiles: ['redis']
+
+  # A fake SMTP server with a web inbox. Included by default (not behind a
+  # profile) so EMAIL_DRIVER=smtp works out of the box and the order emails can
+  # be seen actually arriving rather than only logged — no account, no internet.
+  # Inbox: http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: customer-portal-mailpit
+    restart: unless-stopped
+    ports:
+      - '8025:8025' # web inbox
+      - '1025:1025' # SMTP
+
+  # Optional — a web UI for the API's logs, as an alternative to
+  # `docker compose logs -f api`. Read-only, and never exposed by the API
+  # itself: logs are operator data, not an API surface. Start with:
+  #   docker compose --profile logs up -d
+  # Viewer: http://localhost:8080
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: customer-portal-logs
+    restart: unless-stopped
+    environment:
+      DOZZLE_NO_ANALYTICS: 'true'
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - '8080:8080'
+    profiles: ['logs']
 
 volumes:
   pgdata:

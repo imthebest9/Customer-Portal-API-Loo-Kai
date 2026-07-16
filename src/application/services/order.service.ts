@@ -15,6 +15,7 @@ import { PaginatedResult, PaginationParams } from '../../domain/repositories/pag
 import { ICacheService } from '../ports/cache.port';
 import { IEmailService } from '../ports/email.port';
 import { ILogger } from '../ports/logger.port';
+import { orderPlacedEmail } from '../email/order-emails';
 import { cacheKeys } from './cache-keys';
 import { TOKENS } from '../../shared/tokens';
 
@@ -131,11 +132,7 @@ export class OrderService {
     try {
       const customer = await this.customers.findById(customerId);
       if (!customer) return;
-      await this.email.send({
-        to: customer.email,
-        subject: `Order ${order.id} received`,
-        text: `Hi ${customer.name}, we've received your order for a total of $${order.totalAmount}. Current status: ${order.status}.`,
-      });
+      await this.email.send(orderPlacedEmail(customer.name, customer.email, order));
     } catch (err) {
       // Notifications must never fail the order transaction.
       this.logger.error({ err, orderId: order.id }, 'Failed to send order-placed email');

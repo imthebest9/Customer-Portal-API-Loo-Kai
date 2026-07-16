@@ -43,6 +43,35 @@ describe('Orders & admin', () => {
     expect(res.body.items).toHaveLength(1);
   });
 
+  it('rejects an order that lists the same product on two lines', async () => {
+    const res = await request(ctx.app)
+      .post('/api/orders')
+      .set(asCustomer())
+      .send({
+        items: [
+          { productId: ctx.products[0].id, quantity: 2 },
+          { productId: ctx.products[0].id, quantity: 1 },
+        ],
+      });
+    expect(res.status).toBe(422);
+    expect(res.body.error.details).toEqual([
+      { field: 'items', message: expect.stringContaining('only once') },
+    ]);
+
+    // Distinct products on separate lines remain perfectly legal.
+    const ok = await request(ctx.app)
+      .post('/api/orders')
+      .set(asCustomer())
+      .send({
+        items: [
+          { productId: ctx.products[0].id, quantity: 2 },
+          { productId: ctx.products[1].id, quantity: 1 },
+        ],
+      });
+    expect(ok.status).toBe(201);
+    expect(ok.body.items).toHaveLength(2);
+  });
+
   it('rejects orders that reference unknown products', async () => {
     const res = await request(ctx.app)
       .post('/api/orders')

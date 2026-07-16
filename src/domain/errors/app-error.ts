@@ -54,3 +54,9 @@ export class ConflictError extends AppError {
     super(message, 409, details);
   }
 }
+
+export class PayloadTooLargeError extends AppError {
+  constructor(message = 'Request body is too large') {
+    super(message, 413);
+  }
+}

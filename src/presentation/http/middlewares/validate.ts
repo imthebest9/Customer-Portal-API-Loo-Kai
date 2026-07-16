@@ -28,10 +28,23 @@ export function validate(schema: AnyZodObject) {
       next();
     } catch (err) {
       if (err instanceof ZodError) {
-        const details = err.issues.map((i) => ({
-          field: i.path.filter((p) => p !== 'body' && p !== 'query' && p !== 'params').join('.'),
-          message: i.message,
-        }));
+        const details = err.issues.flatMap((i) => {
+          const field = i.path
+            .filter((p) => p !== 'body' && p !== 'query' && p !== 'params')
+            .join('.');
+
+          // Zod reports an unknown key against the *parent* object, leaving the
+          // path empty — which would surface as `"field": ""`. Name the offending
+          // keys instead, one detail each, so the client learns what to remove.
+          if (i.code === 'unrecognized_keys') {
+            return i.keys.map((key) => ({
+              field: field ? `${field}.${key}` : key,
+              message: `Unrecognized field: ${key}`,
+            }));
+          }
+
+          return [{ field, message: i.message }];
+        });
         next(new ValidationError('Validation failed', details));
         return;
       }

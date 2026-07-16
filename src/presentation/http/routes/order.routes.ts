@@ -53,6 +53,7 @@ export function orderRoutes(authenticate: RequestHandler): Router {
    *           application/json:
    *             schema: { $ref: '#/components/schemas/Order' }
    *       400: { description: One or more products unavailable }
+   *       422: { description: Validation failed — e.g. the same product listed on two lines }
    */
   router.get('/', validate(paginationSchema), asyncHandler(controller.list));
   router.post('/', validate(placeOrderSchema), asyncHandler(controller.place));

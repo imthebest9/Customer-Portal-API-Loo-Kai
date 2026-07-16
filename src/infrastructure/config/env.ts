@@ -17,6 +17,9 @@ const envSchema = z.object({
   LOG_LEVEL: z
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
     .default('info'),
+  // Human-readable log lines instead of raw JSON. Defaults to on outside
+  // production; set explicitly to get readable output from the container too.
+  LOG_PRETTY: booleanFromString.optional(),
 
   DB_HOST: z.string().default('localhost'),
   DB_PORT: z.coerce.number().int().positive().default(5432),

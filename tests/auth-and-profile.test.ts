@@ -43,6 +43,24 @@ describe('Auth & profile', () => {
     expect(res.body.error.details.length).toBeGreaterThan(0);
   });
 
+  it('accepts real phone formats and rejects malformed ones', async () => {
+    const register = (phone: string, email: string) =>
+      request(app).post('/api/auth/register').send({ ...newUser, email, phone });
+
+    // International, local and punctuated forms all describe real numbers.
+    for (const [i, good] of ['+60 12-345 6789', '(03) 2345 6789', '0123456789'].entries()) {
+      const res = await register(good, `good${i}@example.com`);
+      expect(res.status).toBe(201);
+      expect(res.body.customer.phone).toBe(good);
+    }
+
+    // Too short to be a number, too long for E.164, and not a number at all.
+    for (const [i, bad] of ['12345', '+1234567890123456', 'not-a-phone'].entries()) {
+      const res = await register(bad, `bad${i}@example.com`);
+      expect(res.status).toBe(422);
+    }
+  });
+
   it('logs in with correct credentials and rejects wrong ones', async () => {
     await request(app).post('/api/auth/register').send(newUser);
 

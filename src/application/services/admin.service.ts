@@ -10,6 +10,7 @@ import { ICacheService } from '../ports/cache.port';
 import { IEmailService } from '../ports/email.port';
 import { ILogger } from '../ports/logger.port';
 import { CustomerResponse, toCustomerResponse } from '../dtos/customer.dto';
+import { orderShippedEmail } from '../email/order-emails';
 import { cacheKeys } from './cache-keys';
 import { TOKENS } from '../../shared/tokens';
 
@@ -81,11 +82,7 @@ export class AdminService {
     try {
       const customer = await this.customers.findById(order.customerId);
       if (!customer) return;
-      await this.email.send({
-        to: customer.email,
-        subject: `Your order ${order.id} has shipped`,
-        text: `Hi ${customer.name}, good news — your order ${order.id} is on its way!`,
-      });
+      await this.email.send(orderShippedEmail(customer.name, customer.email, order));
     } catch (err) {
       this.logger.error({ err, orderId: order.id }, 'Failed to send order-shipped email');
     }

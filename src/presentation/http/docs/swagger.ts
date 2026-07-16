@@ -110,7 +110,12 @@ const options: swaggerJsdoc.Options = {
             name: { type: 'string' },
             email: { type: 'string', format: 'email' },
             password: { type: 'string', minLength: 8 },
-            phone: { type: 'string' },
+            phone: {
+              type: 'string',
+              description:
+                'Optional. Digits with optional +, spaces, ( ) - . — must contain 7–15 digits (E.164).',
+              example: '+60 12-345 6789',
+            },
             address: { type: 'string' },
           },
         },
@@ -126,7 +131,12 @@ const options: swaggerJsdoc.Options = {
           type: 'object',
           properties: {
             name: { type: 'string' },
-            phone: { type: 'string', nullable: true },
+            phone: {
+              type: 'string',
+              nullable: true,
+              description: 'Must contain 7–15 digits (E.164). Send null to clear.',
+              example: '+60 19-888 7777',
+            },
             address: { type: 'string', nullable: true },
           },
         },
@@ -145,6 +155,8 @@ const options: swaggerJsdoc.Options = {
             items: {
               type: 'array',
               minItems: 1,
+              description:
+                'One line per product — a productId may appear only once. To order more of the same product, raise its quantity.',
               items: {
                 type: 'object',
                 required: ['productId', 'quantity'],
