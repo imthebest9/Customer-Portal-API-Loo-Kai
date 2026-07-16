@@ -1,8 +1,31 @@
 # Customer Portal API
 
-A backend API for a customer-facing portal, built with **Node.js + TypeScript**. Customers can register, log in, manage their profile and password, and place / view / cancel / track orders. Administrators can manage customers and orders via role-protected endpoints.
+A backend API for a customer-facing portal, built with **Node.js + TypeScript**. Customers register, log in, manage their profile and password, and place / view / cancel / track orders. Administrators manage customers and orders via role-protected endpoints.
 
 Built with **Clean Architecture** (Controllers → Services → Repositories), the **Repository Pattern**, **SOLID** principles, and **Dependency Injection**.
+
+> **Note on the brief:** the scenario specifies Node.js, but two requirement lines name **.NET-specific tools** — **Entity Framework Core** and **Serilog** — leftovers from a .NET template. These are implemented with the closest Node-native equivalents, **TypeORM** and **Pino**. The brief's **Dependency Injection** requirement is a language-agnostic pattern, implemented here with **tsyringe**. Rationale is in [`WRITEUP.md`](WRITEUP.md).
+
+---
+
+## Quick start (for reviewers)
+
+You need **Docker Desktop** — that's the only prerequisite (Node and PostgreSQL are not required on your machine; see the note at the bottom of this section). From the repo root:
+
+```bash
+cp .env.example .env       # ready to run as-is; ships a working dev JWT_SECRET
+docker compose up --build
+```
+
+This starts PostgreSQL **and** the API, runs migrations, and seeds an admin + sample products automatically. When you see `Customer Portal API listening…`, open:
+
+**→ http://localhost:3000/api-docs** (interactive Swagger UI)
+
+Log in with the seeded admin **`admin@portal.local` / `Admin123!`**, click **Authorize**, and you can exercise every endpoint. A full click-by-click walkthrough (register → login → place order → cancel, with example JSON) is in **[`docs/API_EXAMPLES.md`](docs/API_EXAMPLES.md)**.
+
+Stop with `Ctrl+C`. `docker compose down` removes the containers; add `-v` to also wipe the database volume.
+
+> **Prefer not to use Docker?** The project also runs directly on Node against a local/hosted PostgreSQL — please reach out and I'll share the host-run steps. To just run the tests, you need **neither Docker nor a database**: `npm install && npm test`.
 
 ---
 
@@ -10,12 +33,11 @@ Built with **Clean Architecture** (Controllers → Services → Repositories), t
 
 | Concern | Choice |
 | --- | --- |
-| Language / runtime | TypeScript, Node.js 20+ (compiled to CommonJS) |
+| Language / runtime | TypeScript, Node.js 20+ (24 recommended, see `.nvmrc`; compiled to CommonJS) |
 | Web framework | Express 5 |
 | Database | PostgreSQL |
 | ORM & migrations | TypeORM (code-first migrations) |
-| Auth | JWT (`jsonwebtoken`) + `bcryptjs` password hashing |
-| Authorization | Role-based (customer / admin) |
+| Auth / authorization | JWT (`jsonwebtoken`) + `bcryptjs`; role-based (customer / admin) |
 | Validation | Zod (request-boundary validation) |
 | Dependency Injection | tsyringe |
 | Logging | Pino (structured JSON) |
@@ -24,64 +46,49 @@ Built with **Clean Architecture** (Controllers → Services → Repositories), t
 | Email (bonus) | Nodemailer (console or SMTP) |
 | Tests | Jest + Supertest |
 
-> **Note on the brief:** the scenario specifies Node.js, but two requirement lines name **.NET-specific tools** — **Entity Framework Core** and **Serilog** — leftovers from a .NET template. These are replaced with the closest Node-native equivalents, **TypeORM** and **Pino**. The brief's **Dependency Injection** requirement is a language-agnostic pattern, implemented here with **tsyringe**. See `WRITEUP.md`.
-
 ---
 
-## Prerequisites
+## Running it
 
-- **Docker Desktop** (recommended — runs everything with one command), **or**
-- **Node.js 20+** (24 recommended — see `.nvmrc`) plus **PostgreSQL 14+** if running on the host.
+`cp .env.example .env`, then `docker compose up --build` (see [Quick start](#quick-start-for-reviewers) above). This runs PostgreSQL **and** the API; migrations and seeding run on startup. Open http://localhost:3000/api-docs. Add `-d` to run detached.
 
-The test suite (`npm test`) needs neither Docker nor a database.
+Leave `DB_HOST=localhost` in `.env` — the compose file overrides it to the database's service name (`db`) inside the container network for you.
 
----
-
-## Getting started
-
-First create your environment file (both options need it):
-
-```bash
-cp .env.example .env
-#   → set JWT_SECRET to a long random value, e.g.  openssl rand -hex 32
-```
-
-### Option A — Docker (recommended, one command)
-
-Runs PostgreSQL **and** the API. Migrations and seeding run automatically on startup.
-
-```bash
-docker compose up --build
-```
-
-That's it — open http://localhost:3000/api-docs. Stop with `Ctrl+C`; add `-d` to run in the background; `docker compose down` to stop (add `-v` to also wipe the database volume).
-
-> With this option, leave `DB_HOST=localhost` in `.env` — the compose file overrides it to `db` (the database's service name) inside the container network for you.
-
-### Option B — Node on the host (hot reload for development)
-
-```bash
-npm install
-docker compose up -d db      # start just PostgreSQL in Docker (or use a local install)
-npm run migration:run        # create the schema (code-first migrations)
-npm run seed                 # seed an admin account + sample products
-npm run dev                  # start with hot reload
-```
-
-The API listens on `http://localhost:3000` (configurable via `PORT`).
+> A Node-on-the-host workflow (hot reload against a local PostgreSQL) is also supported; ask me if you'd prefer to run it that way instead of Docker.
 
 ### Swagger / OpenAPI
-
-Interactive documentation is generated automatically at runtime:
 
 - **Swagger UI:** http://localhost:3000/api-docs
 - **Raw spec (JSON):** http://localhost:3000/api-docs.json
 
-To authorize protected endpoints in Swagger UI: call `POST /api/auth/login`, copy the returned `token`, click **Authorize**, and paste it.
+To call protected endpoints: `POST /api/auth/login`, copy the returned `token`, click **Authorize**, paste it. Seeded admin: `admin@portal.local` / `Admin123!`.
 
-The seeded admin (from `.env`) defaults to `admin@portal.local` / `Admin123!`.
+---
 
-For a full copy-paste walkthrough (register → login → place order → cancel, with example JSON and curl), see [`docs/API_EXAMPLES.md`](docs/API_EXAMPLES.md).
+## API overview
+
+Base path: `/api`. All customer/admin endpoints require `Authorization: Bearer <JWT>`. Pagination uses `?page=<n>&limit=<n>` and returns `{ data, page, limit, total, totalPages }`.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| POST | `/api/auth/register` | Register a customer |
+| POST | `/api/auth/login` | Log in, receive a JWT |
+| GET | `/api/customers/me` | View own profile |
+| PATCH | `/api/customers/me` | Update name / phone / address |
+| PATCH | `/api/customers/me/password` | Change password |
+| GET | `/api/products` | List products (for placing orders) |
+| GET | `/api/orders` | List my orders (paginated) |
+| POST | `/api/orders` | Place an order |
+| GET | `/api/orders/:id` | View one of my orders |
+| GET | `/api/orders/:id/status` | Track order status (cached) |
+| PATCH | `/api/orders/:id/cancel` | Cancel (only while `Pending`) |
+| GET | `/api/admin/customers` | **Admin** — list all customers (paginated) |
+| DELETE | `/api/admin/customers/:id` | **Admin** — delete a customer |
+| PATCH | `/api/admin/customers/:id/deactivate` | **Admin** — deactivate a customer |
+| GET | `/api/admin/orders` | **Admin** — list all orders (paginated) |
+| PATCH | `/api/admin/orders/:id/status` | **Admin** — update order status |
+| GET | `/health` | Liveness probe |
+| GET | `/api-docs` | Swagger UI |
 
 ---
 
@@ -102,49 +109,13 @@ For a full copy-paste walkthrough (register → login → place order → cancel
 
 ---
 
-## API overview
+## Testing
 
-Base path: `/api`. All customer/admin endpoints require `Authorization: Bearer <JWT>`.
+```bash
+npm test
+```
 
-### Auth
-| Method | Path | Description |
-| --- | --- | --- |
-| POST | `/api/auth/register` | Register a customer |
-| POST | `/api/auth/login` | Log in, receive a JWT |
-
-### Customer (self-service)
-| Method | Path | Description |
-| --- | --- | --- |
-| GET | `/api/customers/me` | View profile |
-| PATCH | `/api/customers/me` | Update name / phone / address |
-| PATCH | `/api/customers/me/password` | Change password |
-
-### Orders
-| Method | Path | Description |
-| --- | --- | --- |
-| GET | `/api/products` | List products (for placing orders) |
-| GET | `/api/orders` | List my orders (paginated) |
-| POST | `/api/orders` | Place an order |
-| GET | `/api/orders/:id` | View one of my orders |
-| GET | `/api/orders/:id/status` | Track order status (cached) |
-| PATCH | `/api/orders/:id/cancel` | Cancel (only while `Pending`) |
-
-### Admin (role = admin)
-| Method | Path | Description |
-| --- | --- | --- |
-| GET | `/api/admin/customers` | List all customers (paginated) |
-| DELETE | `/api/admin/customers/:id` | Delete a customer |
-| PATCH | `/api/admin/customers/:id/deactivate` | Deactivate a customer |
-| GET | `/api/admin/orders` | List all orders (paginated) |
-| PATCH | `/api/admin/orders/:id/status` | Update order status |
-
-### Ops
-| Method | Path | Description |
-| --- | --- | --- |
-| GET | `/health` | Liveness probe |
-| GET | `/api-docs` | Swagger UI |
-
-Pagination uses `?page=<n>&limit=<n>` and returns `{ data, page, limit, total, totalPages }`.
+The suite spins up the real Express app wired to **in-memory repository implementations** (via the same DI tokens used in production), so it runs fast with **no database or Docker required**. It covers registration, login, profile & password updates, order placement/cancellation rules, ownership checks, pagination, and role-based authorization.
 
 ---
 
@@ -162,7 +133,7 @@ src/
 tests/             # Supertest suite against in-memory repositories
 ```
 
-Dependencies point **inward**: services depend only on repository/port *interfaces*, so the business logic is fully decoupled from TypeORM and Express.
+Dependencies point **inward**: services depend only on repository/port *interfaces*, so the business logic is fully decoupled from TypeORM and Express. See [`WRITEUP.md`](WRITEUP.md) for the design decisions and how each brief requirement is satisfied.
 
 ---
 
@@ -179,13 +150,3 @@ See `.env.example` for the full list. Key ones:
 | `CACHE_DRIVER` | `memory` | `memory` or `redis` |
 | `EMAIL_DRIVER` | `console` | `console` (logs) or `smtp` |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | admin@portal.local / Admin123! | Seeded admin |
-
----
-
-## Testing
-
-```bash
-npm test
-```
-
-The suite spins up the real Express app wired to **in-memory repository implementations** (via the same DI tokens used in production), so it runs fast with **no database or Docker required**. It covers registration, login, profile & password updates, order placement/cancellation rules, ownership checks, pagination, and role-based authorization.
