@@ -1,0 +1,26 @@
+# Normalise line endings so a checkout behaves the same on every machine.
+#
+# Without this, Git for Windows (core.autocrlf=true by default) rewrites LF to
+# CRLF on checkout. That is harmless for source files, but fatal for anything the
+# Linux container executes: /bin/sh reads the `\r` of a CRLF shebang as part of
+# the interpreter path and fails with the memorable
+#   exec ./docker-entrypoint.sh: no such file or directory
+# — leaving the API crash-looping on an otherwise perfect clone.
+
+* text=auto
+
+# Executed inside the container — must stay LF.
+*.sh text eol=lf
+docker-entrypoint.sh text eol=lf
+Dockerfile text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Windows-native tooling.
+*.ps1 text eol=crlf
+
+# Binary — never touch.
+*.docx binary
+*.png binary
+*.jpg binary
+*.ico binary
