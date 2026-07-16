@@ -13,8 +13,8 @@ Built with **Clean Architecture**, the **Repository Pattern**, **SOLID** princip
 **Docker Desktop is the only prerequisite** — Node and PostgreSQL aren't needed on your machine.
 
 ```bash
-cp .env.example .env                        # ready to run as-is
-docker compose --profile logs up --build    # everything, one command
+cp .env.example .env        # ready to run as-is
+docker compose up --build   # everything, one command
 ```
 
 Migrations apply and an admin + sample products are seeded automatically. When you see `Customer Portal API listening…`:
@@ -27,16 +27,19 @@ Migrations apply and an admin + sample products are seeded automatically. When y
 
 In Swagger, log in via `POST /api/auth/login` as **`admin@portal.local` / `Admin123!`**, copy the `token`, click **Authorize**, and every endpoint is exercisable. A click-by-click walkthrough is in **[`docs/API_EXAMPLES.md`](docs/API_EXAMPLES.md)**.
 
-Stop with `Ctrl+C`; `docker compose --profile logs down -v` removes the containers and the database volume.
+Stop with `Ctrl+C`; `docker compose down -v` removes the containers and the database volume.
 
 **Tests need neither Docker nor a database:** `npm install && npm test`.
 
 <details>
 <summary>Other ways to run it</summary>
 
-- `docker compose up --build` — same, minus the log viewer (`docker compose logs -f api` shows the same output).
-- `docker compose --profile redis up -d` — adds Redis, for `CACHE_DRIVER=redis`. Profiles combine.
-- Node on the host (hot reload) against a local PostgreSQL is also supported — ask and I'll share the steps.
+`COMPOSE_PROFILES` in `.env` decides which optional services come up — it ships as `logs` (the Dozzle viewer):
+
+- `COMPOSE_PROFILES=logs,redis` — also starts Redis, for `CACHE_DRIVER=redis`.
+- `COMPOSE_PROFILES=` — just the API, database and mail server. `docker compose logs -f api` shows the same output as Dozzle.
+
+Node on the host (hot reload) against a local PostgreSQL is also supported — ask and I'll share the steps.
 
 Leave `DB_HOST=localhost` in `.env`: compose overrides it to the `db` service name inside the container network (same for `SMTP_HOST` → `mailpit`).
 

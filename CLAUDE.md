@@ -41,11 +41,12 @@ npm run migration:run  # apply migrations (needs a running Postgres)
 npm run migration:generate  # generate from entity changes (needs a running DB)
 npm run seed           # seed admin + sample products
 
-docker compose --profile logs up --build  # EVERYTHING: Swagger :3000, Mailpit :8025, Dozzle :8080
-docker compose up --build    # API + Postgres + Mailpit; migrations+seed on startup
+docker compose up --build    # EVERYTHING: Swagger :3000, Mailpit :8025, Dozzle :8080
+docker compose down -v       # remove it all, including the database volume
 docker compose up -d db      # only Postgres, then `npm run dev` on the host
-docker compose --profile redis up -d   # Redis, for CACHE_DRIVER=redis
 ```
+
+**Which optional services start is `COMPOSE_PROFILES` in `.env`** (ships as `logs`; `logs,redis` adds Redis). Deliberately not a `--profile` flag on the command line: `down` without the same flag removes the shared network while leaving profile containers attached to it, which breaks them with `network <id> not found`. Reading it from `.env` means plain `up`/`down` always cover the same set.
 
 Always run `npm run typecheck && npm run lint && npm test` before considering a change done.
 

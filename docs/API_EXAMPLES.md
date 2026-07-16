@@ -2,7 +2,7 @@
 
 A click-by-click run through the API in the order a real client would call it. Nothing to install: it all happens in the browser.
 
-Start the stack (`docker compose --profile logs up --build`), then open **<http://localhost:3000>**.
+Start the stack (`docker compose up --build`), then open **<http://localhost:3000>**.
 
 Every endpoint has a **Try it out** button: click it, edit the JSON body, then **Execute**. Two things worth knowing:
 
