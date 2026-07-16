@@ -1,21 +1,31 @@
 import { NextFunction, Request, RequestHandler, Response } from 'express';
 import { ITokenService } from '../../../application/ports/token.port';
+import { CustomerService } from '../../../application/services/customer.service';
 import { Role } from '../../../domain/entities/enums';
 import { ForbiddenError, UnauthorizedError } from '../../../domain/errors/app-error';
 
 /**
  * Factory for the JWT authentication middleware. Verifies the `Authorization:
- * Bearer <token>` header and attaches the decoded payload to `req.user`.
+ * Bearer <token>` header, confirms the account it names is still active, and
+ * attaches the decoded payload to `req.user`.
  */
-export function createAuthMiddleware(tokenService: ITokenService): RequestHandler {
+export function createAuthMiddleware(
+  tokenService: ITokenService,
+  customerService: CustomerService,
+): RequestHandler {
   return (req: Request, _res: Response, next: NextFunction): void => {
-    const header = req.headers.authorization;
-    if (!header || !header.startsWith('Bearer ')) {
-      throw new UnauthorizedError('Missing or malformed Authorization header');
-    }
-    const token = header.slice('Bearer '.length).trim();
-    req.user = tokenService.verify(token);
-    next();
+    void (async () => {
+      const header = req.headers.authorization;
+      if (!header || !header.startsWith('Bearer ')) {
+        throw new UnauthorizedError('Missing or malformed Authorization header');
+      }
+      const token = header.slice('Bearer '.length).trim();
+      const payload = tokenService.verify(token);
+      // A valid signature is not enough — the account may have been
+      // deactivated or deleted since the token was issued.
+      await customerService.assertActiveAccount(payload.sub);
+      req.user = payload;
+    })().then(() => next(), next);
   };
 }
 

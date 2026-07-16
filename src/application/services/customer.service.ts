@@ -23,6 +23,28 @@ export class CustomerService {
     @inject(TOKENS.Logger) private readonly logger: ILogger,
   ) {}
 
+  /**
+   * Verifies the subject of a JWT still resolves to a live, active account.
+   * A token outlives the account it was issued for: an admin may have
+   * deactivated or deleted the customer since it was signed, and without this
+   * the token would keep working until it expired. Runs on every authenticated
+   * request, so it reads through (and warms) the same profile cache as
+   * {@link getProfile}.
+   */
+  async assertActiveAccount(customerId: string): Promise<void> {
+    const cached = await this.cache.get<CustomerResponse>(cacheKeys.customer(customerId));
+    if (cached) {
+      if (!cached.isActive) throw new UnauthorizedError('Account is deactivated');
+      return;
+    }
+
+    const customer = await this.customers.findById(customerId);
+    if (!customer) throw new UnauthorizedError('Account no longer exists');
+    if (!customer.isActive) throw new UnauthorizedError('Account is deactivated');
+
+    await this.cache.set(cacheKeys.customer(customerId), toCustomerResponse(customer));
+  }
+
   /** Profile read — served from cache when available (bonus: caching). */
   async getProfile(customerId: string): Promise<CustomerResponse> {
     const cached = await this.cache.get<CustomerResponse>(cacheKeys.customer(customerId));

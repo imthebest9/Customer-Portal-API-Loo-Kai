@@ -50,7 +50,7 @@ export class NotFoundError extends AppError {
 }
 
 export class ConflictError extends AppError {
-  constructor(message = 'Resource conflict') {
-    super(message, 409);
+  constructor(message = 'Resource conflict', details?: unknown) {
+    super(message, 409, details);
   }
 }

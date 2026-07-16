@@ -70,6 +70,8 @@ const options: swaggerJsdoc.Options = {
             name: { type: 'string' },
             price: { type: 'number' },
             isActive: { type: 'boolean' },
+            createdAt: { type: 'string', format: 'date-time' },
+            updatedAt: { type: 'string', format: 'date-time' },
           },
         },
         OrderItem: {
@@ -204,9 +206,13 @@ const options: swaggerJsdoc.Options = {
       },
     },
   },
-  // Scan route files for @openapi annotations (both .ts in dev and .js when built).
+  // Scan the route files (and app.ts, which annotates /health) for @openapi
+  // annotations — both .ts in dev and .js when built.
   // `glob` treats backslashes as escapes, so always use forward slashes (Windows-safe).
-  apis: [path.join(__dirname, '..', 'routes', '*.{ts,js}').replace(/\\/g, '/')],
+  apis: [
+    path.join(__dirname, '..', 'routes', '*.{ts,js}').replace(/\\/g, '/'),
+    path.join(__dirname, '..', '..', '..', 'app.{ts,js}').replace(/\\/g, '/'),
+  ],
 };
 
 export const openApiSpec = swaggerJsdoc(options);

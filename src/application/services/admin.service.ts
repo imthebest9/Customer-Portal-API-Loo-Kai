@@ -3,7 +3,8 @@ import { ICustomerRepository } from '../../domain/repositories/customer.reposito
 import { IOrderRepository } from '../../domain/repositories/order.repository';
 import { Order } from '../../domain/entities/models';
 import { OrderStatus } from '../../domain/entities/enums';
-import { NotFoundError } from '../../domain/errors/app-error';
+import { allowedTransitionsFrom, canTransition } from '../../domain/entities/order-status.policy';
+import { ConflictError, NotFoundError } from '../../domain/errors/app-error';
 import { PaginatedResult, PaginationParams } from '../../domain/repositories/pagination';
 import { ICacheService } from '../ports/cache.port';
 import { IEmailService } from '../ports/email.port';
@@ -51,6 +52,20 @@ export class AdminService {
   async updateOrderStatus(orderId: string, status: OrderStatus): Promise<Order> {
     const order = await this.orders.findById(orderId);
     if (!order) throw new NotFoundError('Order not found');
+
+    if (!canTransition(order.status, status)) {
+      const allowed = allowedTransitionsFrom(order.status);
+      throw new ConflictError(
+        order.status === status
+          ? `Order is already "${status}"`
+          : `An order cannot move from "${order.status}" to "${status}"`,
+        {
+          from: order.status,
+          to: status,
+          allowedTransitions: allowed,
+        },
+      );
+    }
 
     const updated = await this.orders.updateStatus(orderId, status);
     await this.cache.del(cacheKeys.orderStatus(orderId));

@@ -15,6 +15,12 @@ describe('Auth & profile', () => {
     password: 'Password123',
   };
 
+  it('sends the base URL to the API docs', async () => {
+    const res = await request(app).get('/');
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe('/api-docs');
+  });
+
   it('registers a customer and returns a JWT', async () => {
     const res = await request(app).post('/api/auth/register').send(newUser);
     expect(res.status).toBe(201);

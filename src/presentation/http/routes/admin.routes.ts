@@ -107,6 +107,11 @@ export function adminRoutes(authenticate: RequestHandler): Router {
    *   patch:
    *     tags: [Admin]
    *     summary: Update an order's status
+   *     description: >
+   *       Moves an order along its lifecycle. Only these transitions are legal:
+   *       Pending → Shipped, Pending → Cancelled, Shipped → Delivered.
+   *       Delivered and Cancelled are terminal, so a cancelled order can never
+   *       be shipped. Anything else is rejected with 409.
    *     security: [{ bearerAuth: [] }]
    *     parameters:
    *       - $ref: '#/components/parameters/IdParam'
@@ -122,6 +127,7 @@ export function adminRoutes(authenticate: RequestHandler): Router {
    *           application/json:
    *             schema: { $ref: '#/components/schemas/Order' }
    *       404: { description: Order not found }
+   *       409: { description: Illegal status transition for this order's current status }
    */
   router.patch(
     '/orders/:id/status',

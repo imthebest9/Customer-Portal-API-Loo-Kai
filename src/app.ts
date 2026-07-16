@@ -7,6 +7,7 @@ import { container } from 'tsyringe';
 import { TOKENS } from './shared/tokens';
 import { ITokenService } from './application/ports/token.port';
 import { ILogger } from './application/ports/logger.port';
+import { CustomerService } from './application/services/customer.service';
 import { rootLogger } from './infrastructure/logging/pino.logger';
 import { createAuthMiddleware } from './presentation/http/middlewares/auth';
 import {
@@ -29,7 +30,7 @@ export function buildApp(): Express {
   const app = express();
   const tokenService = container.resolve<ITokenService>(TOKENS.TokenService);
   const logger = container.resolve<ILogger>(TOKENS.Logger);
-  const authenticate = createAuthMiddleware(tokenService);
+  const authenticate = createAuthMiddleware(tokenService, container.resolve(CustomerService));
 
   app.use(helmet());
   app.use(cors());
@@ -41,6 +42,20 @@ export function buildApp(): Express {
     '/api',
     rateLimit({ windowMs: 15 * 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false }),
   );
+
+  /**
+   * @openapi
+   * /:
+   *   get:
+   *     tags: [Health]
+   *     summary: Redirects to the API documentation
+   *     description: Convenience entry point so the base URL lands on Swagger UI.
+   *     responses:
+   *       302: { description: Redirect to /api-docs }
+   */
+  app.get('/', (_req, res) => {
+    res.redirect('/api-docs');
+  });
 
   /**
    * @openapi

@@ -20,6 +20,8 @@ npm-debug.log*
 # Scenario brief / internal Word docs — keep out of the public repo
 *.docx
 ~$*
+# …except the generated write-up deliverable (see scripts/build-writeup-docx.ps1)
+!WRITEUP.docx
 
 # OS / editor
 .DS_Store

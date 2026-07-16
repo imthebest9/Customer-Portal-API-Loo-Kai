@@ -4,6 +4,7 @@ import { IProductRepository } from '../../domain/repositories/product.repository
 import { ICustomerRepository } from '../../domain/repositories/customer.repository';
 import { Order } from '../../domain/entities/models';
 import { OrderStatus } from '../../domain/entities/enums';
+import { canTransition } from '../../domain/entities/order-status.policy';
 import {
   BadRequestError,
   ConflictError,
@@ -20,6 +21,12 @@ import { TOKENS } from '../../shared/tokens';
 export interface PlaceOrderItemInput {
   productId: string;
   quantity: number;
+}
+
+/** Cache entry for {@link OrderService.getStatus}. */
+interface CachedOrderStatus {
+  status: OrderStatus;
+  customerId: string;
 }
 
 @injectable()
@@ -67,7 +74,7 @@ export class OrderService {
     return order;
   }
 
-  /** Returns an order the caller is allowed to see (owner, or any order for admins). */
+  /** Returns an order, or throws unless the caller owns it. */
   async getOrderForCustomer(customerId: string, orderId: string): Promise<Order> {
     const order = await this.orders.findById(orderId);
     if (!order) throw new NotFoundError('Order not found');
@@ -86,8 +93,9 @@ export class OrderService {
 
   async cancelOrder(customerId: string, orderId: string): Promise<Order> {
     const order = await this.getOrderForCustomer(customerId, orderId);
-    if (order.status !== OrderStatus.Pending) {
-      // Can only cancel while not yet shipped.
+    // Can only cancel while not yet shipped; the lifecycle policy is the single
+    // source of truth, shared with the admin status-update path.
+    if (!canTransition(order.status, OrderStatus.Cancelled)) {
       throw new ConflictError(
         `Order cannot be cancelled while its status is "${order.status}"`,
       );
@@ -99,18 +107,24 @@ export class OrderService {
     return updated;
   }
 
-  /** Cached read of an order's status (bonus: caching). */
+  /**
+   * Cached read of an order's status (bonus: caching). The owner is cached
+   * alongside the status so ownership can still be enforced on a hit without
+   * re-reading the order — otherwise the cache would save no work at all.
+   */
   async getStatus(customerId: string, orderId: string): Promise<{ status: OrderStatus }> {
-    const cached = await this.cache.get<{ status: OrderStatus }>(cacheKeys.orderStatus(orderId));
+    const key = cacheKeys.orderStatus(orderId);
+    const cached = await this.cache.get<CachedOrderStatus>(key);
     if (cached) {
-      // Still enforce ownership even on a cache hit.
-      await this.getOrderForCustomer(customerId, orderId);
-      return cached;
+      if (cached.customerId !== customerId) {
+        throw new ForbiddenError('You do not have access to this order');
+      }
+      return { status: cached.status };
     }
+
     const order = await this.getOrderForCustomer(customerId, orderId);
-    const result = { status: order.status };
-    await this.cache.set(cacheKeys.orderStatus(orderId), result);
-    return result;
+    await this.cache.set(key, { status: order.status, customerId: order.customerId });
+    return { status: order.status };
   }
 
   private async notifyOrderPlaced(customerId: string, order: Order): Promise<void> {
